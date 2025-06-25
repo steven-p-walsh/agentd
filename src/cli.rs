@@ -1,5 +1,6 @@
-use crate::{LlmConfig, LlmInterface, backends::LlamaCppBackend, LlmError, config, discover_models};
-use clap::{Args, Parser, Subcommand};
+use crate::{discover_models, open, LlmError, config};
+use clap::{Parser, Subcommand, Args};
+use std::io::{self, Read};
 use std::collections::HashMap;
 
 #[derive(Parser)]
@@ -64,24 +65,33 @@ pub fn run_cli() -> Result<(), LlmError> {
 }
 
 fn generate_command(args: GenerateArgs) -> Result<(), LlmError> {
-    let mut config = LlmConfig::from_model_name(&args.model)?;
+    let mut llm = open(&args.model)?;
     
-    // Override default parameters if provided
+    let mut cli_args = Vec::new();
+
     if let Some(temp) = args.temperature {
-        let new_args = override_arg(config.additional_args.clone(), "--temp", &temp.to_string());
-        config = config.with_args(new_args);
+        cli_args.extend_from_slice(&["--temp".to_string(), temp.to_string()]);
     }
     if let Some(top_p) = args.top_p {
-        let new_args = override_arg(config.additional_args.clone(), "--top-p", &top_p.to_string());
-        config = config.with_args(new_args);
+        cli_args.extend_from_slice(&["--top-p".to_string(), top_p.to_string()]);
     }
     if let Some(max_tokens) = args.max_tokens {
-        let new_args = override_arg(config.additional_args.clone(), "--n-predict", &max_tokens.to_string());
-        config = config.with_args(new_args);
+        cli_args.extend_from_slice(&["--n-predict".to_string(), max_tokens.to_string()]);
     }
+
+    if !cli_args.is_empty() {
+        llm = llm.with_args(cli_args);
+    }
+
+    let prompt = if args.prompt.is_empty() {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).map_err(|e| LlmError::Io(e))?;
+        buffer
+    } else {
+        args.prompt.clone()
+    };
     
-    let llm = LlamaCppBackend::new(config)?;
-    let response = llm.generate(&args.prompt)?;
+    let response = llm.generate(&prompt)?;
     
     println!("{}", response.trim());
     Ok(())
@@ -124,9 +134,10 @@ fn download_command(args: DownloadArgs) -> Result<(), LlmError> {
         println!("Downloading model: {}", args.model);
         println!("This would download from: {}", url_info.url);
         println!("File: {}", url_info.filename);
-        println!();
-        println!("For now, please use huggingface-cli:");
-        println!("  huggingface-cli download {} {} --local-dir ~/.agentd/models/", 
+        // Placeholder for actual download logic
+        // For example, using huggingface-cli
+        println!("Run this command to download:");
+        println!("huggingface-cli download {} {} --local-dir ~/.agentd/models/",
                  url_info.repo, url_info.filename);
     } else {
         return Err(LlmError::InvalidModelPath(format!("Unknown model: {}", args.model)));
@@ -148,54 +159,30 @@ fn info_command(args: InfoArgs) -> Result<(), LlmError> {
     println!("Model: {}", args.model);
     println!("File: {}", model_entry.file);
     println!("Path: {}", model_path.display());
-    println!("Description: {}", model_entry.description.as_deref().unwrap_or("No description"));
-    
-    if let Some(context_size) = model_entry.context_size {
-        println!("Context Size: {}", context_size);
-    }
-    
-    // Show file size if available
-    if let Ok(metadata) = std::fs::metadata(&model_path) {
-        let size_mb = metadata.len() / (1024 * 1024);
-        println!("File Size: {} MB", size_mb);
-    }
+    println!("Description: {}", model_entry.description.as_deref().unwrap_or("N/A"));
     
     Ok(())
 }
 
-fn override_arg(mut args: Vec<String>, flag: &str, value: &str) -> Vec<String> {
-    // Find and replace existing flag or add new one
-    if let Some(pos) = args.iter().position(|x| x == flag) {
-        if pos + 1 < args.len() {
-            args[pos + 1] = value.to_string();
-        }
-    } else {
-        args.push(flag.to_string());
-        args.push(value.to_string());
-    }
-    args
+struct ModelUrl<'a> {
+    repo: &'a str,
+    filename: &'a str,
+    url: &'a str,
 }
 
-struct ModelUrl {
-    repo: &'static str,
-    filename: &'static str,
-    url: &'static str,
-}
-
-fn get_model_urls() -> HashMap<String, ModelUrl> {
+fn get_model_urls<'a>() -> HashMap<String, ModelUrl<'a>> {
     let mut models = HashMap::new();
-    
-    models.insert("gemma-2-2b-it".to_string(), ModelUrl {
+    models.insert("gemma-2-2b-it-GGUF".to_string(), ModelUrl {
         repo: "bartowski/gemma-2-2b-it-GGUF",
         filename: "gemma-2-2b-it-Q4_K_M.gguf",
-        url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF",
+        url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/blob/main/gemma-2-2b-it-Q4_K_M.gguf"
     });
     
-    models.insert("gemma-2-2b".to_string(), ModelUrl {
+    models.insert("gemma-2-2b-GGUF".to_string(), ModelUrl {
         repo: "bartowski/gemma-2-2b-GGUF",
         filename: "gemma-2-2b-Q4_K_M.gguf",
-        url: "https://huggingface.co/bartowski/gemma-2-2b-GGUF",
+        url: "https://huggingface.co/bartowski/gemma-2-2b-GGUF/blob/main/gemma-2-2b-Q4_K_M.gguf"
     });
-    
+
     models
 }

@@ -66,16 +66,29 @@ pub fn get_models_dir() -> PathBuf {
 
 pub fn load_config() -> Result<AgentConfig, LlmError> {
     let config_path = get_config_dir().join("config.toml");
+    let models_path = get_config_dir().join("models.toml");
     
-    if !config_path.exists() {
-        return Ok(AgentConfig::default());
+    let mut config = if config_path.exists() {
+        let content = fs::read_to_string(&config_path)
+            .map_err(|e| LlmError::Io(e))?;
+        
+        toml::from_str(&content)
+            .map_err(|e| LlmError::ProcessExecution(format!("Failed to parse config: {}", e)))?
+    } else {
+        AgentConfig::default()
+    };
+    
+    // Load models from models.toml if it exists
+    if models_path.exists() {
+        let models_content = fs::read_to_string(&models_path)
+            .map_err(|e| LlmError::Io(e))?;
+        
+        let models: HashMap<String, ModelEntry> = toml::from_str(&models_content)
+            .map_err(|e| LlmError::ProcessExecution(format!("Failed to parse models.toml: {}", e)))?;
+        
+        // Merge models into config
+        config.models.extend(models);
     }
-    
-    let content = fs::read_to_string(&config_path)
-        .map_err(|e| LlmError::Io(e))?;
-    
-    let config: AgentConfig = toml::from_str(&content)
-        .map_err(|e| LlmError::ProcessExecution(format!("Failed to parse config: {}", e)))?;
     
     Ok(config)
 }

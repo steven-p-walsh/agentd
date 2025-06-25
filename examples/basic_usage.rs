@@ -1,15 +1,13 @@
-use agentd::{LlmConfig, LlmInterface, backends::LlamaCppBackend};
+use agentd::open;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Replace "your-model-name" with the name of your model in ~/.agentd/models/
-    let config = LlmConfig::from_model_name("your-model-name")?
+    // Using the Gemma model from local models directory
+    let llm = open("gemma-3-12B-it-QAT-Q4_0")?
         .with_args(vec![
             "--temp".to_string(), "0.7".to_string(),
             "--top-p".to_string(), "0.9".to_string(),
             "--repeat-penalty".to_string(), "1.1".to_string(),
         ]);
-    
-    let llm = LlamaCppBackend::new(config)?;
     
     let prompts = vec![
         "What is the capital of France?",

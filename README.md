@@ -1,6 +1,6 @@
 # agentd
 
-A simple Rust interface for interacting with local Large Language Models (LLMs) via file descriptor interfaces.
+A simple command-line tool for interacting with local Large Language Models (LLMs). Built in Rust with a focus on simplicity and performance.
 
 ## Features
 
@@ -29,8 +29,8 @@ This will:
 
 1. **Download a model:**
 ```bash
-# Using huggingface-cli (for now)
-huggingface-cli download bartowski/gemma-2-2b-it-GGUF gemma-2-2b-it-Q4_K_M.gguf --local-dir ~/.agentd/models/
+# Using huggingface-cli to download Gemma models
+huggingface-cli download lmstudio-community/gemma-3-12B-it-qat-GGUF gemma-3-12B-it-QAT-Q4_0.gguf --local-dir ~/.agentd/models/
 ```
 
 2. **List available models:**
@@ -40,7 +40,7 @@ agentd list
 
 3. **Generate text:**
 ```bash
-agentd generate gemma-2-2b-it-Q4_K_M "What is the capital of France?"
+agentd generate gemma-3-12B-it-QAT-Q4_0 "What is the capital of France?"
 ```
 
 ## CLI Usage
@@ -89,28 +89,23 @@ max_tokens = 256
 
 ### `models.toml`
 ```toml
-[gemma-2-2b-it]
-file = "gemma-2-2b-it-Q4_K_M.gguf"
-description = "Gemma 2 2B Instruction Tuned (Q4_K_M)"
+[gemma-3-12B-it-QAT-Q4_0]
+file = "gemma-3-12B-it-QAT-Q4_0.gguf"
+description = "Gemma 3 12B Instruction Tuned (QAT Q4_0)"
 context_size = 8192
 ```
 
-## Library Usage
+## File Descriptor Interface
 
-```rust
-use agentd::{LlmConfig, LlmInterface, backends::LlamaCppBackend};
+`agentd` uses a file descriptor-based interface to communicate with the underlying llama.cpp process. This provides efficient streaming communication and allows for real-time interaction with the model.
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Using model name (recommended)
-    let config = LlmConfig::from_model_name("gemma-2-2b-it-Q4_K_M")?;
-    let llm = LlamaCppBackend::new(config)?;
-    
-    let response = llm.generate("What is machine learning?")?;
-    println!("{}", response);
-    
-    Ok(())
-}
-```
+### How it works:
+1. **Process Spawning**: When you open a model, agentd spawns a llama.cpp process with the specified model and parameters
+2. **Stdin/Stdout Communication**: Text prompts are sent via stdin, and model responses are read from stdout  
+3. **Streaming Output**: Responses are streamed token-by-token, allowing for real-time display
+4. **Process Management**: The process lifecycle is managed automatically, with proper cleanup on exit
+
+This approach ensures low overhead and efficient resource usage while maintaining compatibility with the full llama.cpp feature set.
 
 ## Directory Structure
 
@@ -126,17 +121,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Supported Models
 
-agentd automatically discovers any `.gguf` files in the models directory. Pre-configured models include:
+agentd automatically discovers any `.gguf` files in the models directory. The examples use:
 
-- **gemma-2-2b-it**: Gemma 2 2B Instruction Tuned
-- **gemma-2-2b**: Gemma 2 2B Base Model
+- **gemma-3-12B-it-QAT-Q4_0**: Gemma 3 12B Instruction Tuned (QAT Q4_0 quantization)
+
+Any GGUF model compatible with llama.cpp will work with agentd.
 
 ## Examples
 
-See the `examples/` directory:
-- `basic_usage.rs`: Original path-based usage
-- `model_name_usage.rs`: Model name-based usage
-- `gemma_test.rs`: Testing with real Gemma model
+The `examples/` directory contains working examples:
+
+```bash
+# Run the basic usage example
+cargo run --example basic_usage
+
+# Test with different prompts
+cargo run --example gemma_test
+
+# Demonstrate model name resolution
+cargo run --example model_name_usage
+```
+
+All examples use the Gemma model and demonstrate different aspects of the agentd library.
 
 ## Error Handling
 

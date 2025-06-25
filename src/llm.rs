@@ -40,9 +40,16 @@ impl LlmConfig {
     }
 }
 
-pub trait LlmInterface {
+pub fn open(model_name: &str) -> Result<Box<dyn LlmInterface + Send + Sync>, LlmError> {
+    let config = LlmConfig::from_model_name(model_name)?;
+    let backend = llamacpp::LlamaCppBackend::new(config)?;
+    Ok(Box::new(backend))
+}
+
+pub trait LlmInterface: Send + Sync {
     fn generate(&self, prompt: &str) -> Result<String, LlmError>;
     fn config(&self) -> &LlmConfig;
+    fn with_args(self: Box<Self>, args: Vec<String>) -> Box<dyn LlmInterface + Send + Sync>;
 }
 
 pub mod backends {
@@ -105,6 +112,11 @@ mod llamacpp {
 
         fn config(&self) -> &LlmConfig {
             &self.config
+        }
+
+        fn with_args(mut self: Box<Self>, args: Vec<String>) -> Box<dyn LlmInterface + Send + Sync> {
+            self.config.additional_args = args;
+            self
         }
     }
 }
