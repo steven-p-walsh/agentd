@@ -44,22 +44,18 @@ echo "Creating model registry..."
 cat > "${AGENTD_CONFIG}/models.toml" << 'EOF'
 # Model Registry
 # Models are automatically discovered, but you can override settings here
-
-[gemma-2-2b-it]
-file = "gemma-2-2b-it-Q4_K_M.gguf"
-description = "Gemma 2 2B Instruction Tuned (Q4_K_M)"
-context_size = 8192
-
-[gemma-2-2b]
-file = "gemma-2-2b-Q4_K_M.gguf"
-description = "Gemma 2 2B Base Model (Q4_K_M)"
-context_size = 8192
+# Add your model configurations below following this format:
+#
+# [your-model-name]
+# file = "your-model-file.gguf"
+# description = "Description of your model"
+# context_size = 4096
 EOF
 
-# Move existing model if it exists
-if [ -f "models/gemma-2-2b-it-Q4_K_M.gguf" ]; then
-    echo "Moving existing model to agentd models directory..."
-    mv models/gemma-2-2b-it-Q4_K_M.gguf "${AGENTD_MODELS}/"
+# Move any existing GGUF models from models/ directory
+if [ -d "models" ] && [ "$(ls -A models/*.gguf 2>/dev/null)" ]; then
+    echo "Moving existing models to agentd models directory..."
+    mv models/*.gguf "${AGENTD_MODELS}/" 2>/dev/null || true
 fi
 
 # Add to PATH if not already there
@@ -92,10 +88,9 @@ echo "To complete installation:"
 echo "1. Restart your shell or run: export PATH=\"\$PATH:${AGENTD_BIN}\""
 echo "2. Test with: agentd --help"
 echo ""
-echo "To download models:"
-echo "  agentd download gemma-2-2b-it"
+echo "To download models, place them in: ${AGENTD_MODELS}"
 echo ""
 echo "To run inference:"
-echo "  agentd generate gemma-2-2b-it \"What is the capital of France?\""
+echo "  agentd generate <model-name> \"What is the capital of France?\""
 
 exec "$SHELL"

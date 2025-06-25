@@ -1,7 +1,8 @@
 use agentd::{LlmConfig, LlmInterface, backends::LlamaCppBackend};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = LlmConfig::new("llama.cpp", "models/llama-2-7b-chat.gguf")
+    // Replace "your-model-name" with the name of your model in ~/.agentd/models/
+    let config = LlmConfig::from_model_name("your-model-name")?
         .with_args(vec![
             "--temp".to_string(), "0.7".to_string(),
             "--top-p".to_string(), "0.9".to_string(),

@@ -1,8 +1,8 @@
 use agentd::{LlmConfig, LlmInterface, backends::LlamaCppBackend};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Using model name instead of full path
-    let config = LlmConfig::from_model_name("gemma-2-2b-it-Q4_K_M")?;
+    // Using model name instead of full path - replace with your model name
+    let config = LlmConfig::from_model_name("your-model-name")?;
     let llm = LlamaCppBackend::new(config)?;
     
     let prompts = vec![
