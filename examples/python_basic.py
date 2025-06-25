@@ -61,9 +61,12 @@ def main():
                 print(f"Error generating response: {e}")
         
         print("\n--- Testing with custom arguments ---")
-        # Create a new LLM instance with custom arguments
+        # Method 1: Create a new LLM instance with custom arguments and specific model
         custom_args = ["--temp", "0.9", "--top-p", "0.8"]
-        llm_custom = agentd.open_with_args(model_name, custom_args)
+        llm_custom = agentd.open_with_args(custom_args, model_name)
+        
+        # Method 2: Create a new LLM instance with custom arguments and default model
+        llm_custom_default = agentd.open_with_args(["--temp", "0.8"])
         
         prompt = "Write a creative haiku about programming."
         print(f"Prompt: {prompt}")

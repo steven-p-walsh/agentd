@@ -22,15 +22,25 @@ impl LlmConfig {
         let config = crate::config::load_config()?;
         let model_path = crate::config::resolve_model_path(model_name)?;
         
+        let mut args = vec![
+            "--temp".to_string(), config.defaults.temperature.to_string(),
+            "--top-p".to_string(), config.defaults.top_p.to_string(),
+            "--repeat-penalty".to_string(), config.defaults.repeat_penalty.to_string(),
+            "--n-predict".to_string(), config.defaults.max_tokens.to_string(),
+        ];
+        
+        // Add GPU support if configured
+        if config.runtime.use_gpu {
+            if let Some(gpu_layers) = config.runtime.gpu_layers {
+                args.push("--n-gpu-layers".to_string());
+                args.push(gpu_layers.to_string());
+            }
+        }
+        
         Ok(Self {
             executable_path: config.runtime.llama_executable,
             model_path: model_path.to_string_lossy().to_string(),
-            additional_args: vec![
-                "--temp".to_string(), config.defaults.temperature.to_string(),
-                "--top-p".to_string(), config.defaults.top_p.to_string(),
-                "--repeat-penalty".to_string(), config.defaults.repeat_penalty.to_string(),
-                "--n-predict".to_string(), config.defaults.max_tokens.to_string(),
-            ],
+            additional_args: args,
         })
     }
 
@@ -74,6 +84,52 @@ mod llamacpp {
             
             Ok(Self { config })
         }
+
+        fn clean_response(response: &str, original_prompt: &str) -> String {
+            let mut cleaned = response.to_string();
+            
+            // Remove the echoed prompt from the beginning (exact match)
+            if cleaned.starts_with(original_prompt) {
+                cleaned = cleaned[original_prompt.len()..].to_string();
+            }
+            
+            // Try to find the prompt followed by common separators
+            let prompt_patterns = [
+                format!("{}\n", original_prompt),
+                format!("{}?", original_prompt),
+                format!("{}:", original_prompt),
+                format!("{} ", original_prompt),
+            ];
+            
+            for pattern in prompt_patterns {
+                if cleaned.starts_with(&pattern) {
+                    cleaned = cleaned[pattern.len()..].to_string();
+                    break;
+                }
+            }
+            
+            // Remove common llama.cpp artifacts and control characters
+            cleaned = cleaned.replace("> EOF by user", "");
+            cleaned = cleaned.replace("EOF by user", "");
+            cleaned = cleaned.replace("> ", "");
+            cleaned = cleaned.replace("\n> ", "\n");
+            
+            // Remove any remaining control sequences
+            cleaned = cleaned.lines()
+                .filter(|line| !line.trim().is_empty() || line.contains(char::is_alphabetic))
+                .collect::<Vec<_>>()
+                .join("\n");
+            
+            // Remove leading/trailing whitespace and normalize line endings
+            cleaned = cleaned.trim().to_string();
+            
+            // If the response is now empty, return something meaningful
+            if cleaned.is_empty() {
+                cleaned = "[No response generated]".to_string();
+            }
+            
+            cleaned
+        }
     }
 
     impl LlmInterface for LlamaCppBackend {
@@ -107,7 +163,9 @@ mod llamacpp {
                 return Err(LlmError::EmptyResponse);
             }
 
-            Ok(response)
+            // Clean up the response
+            let cleaned_response = Self::clean_response(&response, prompt);
+            Ok(cleaned_response)
         }
 
         fn config(&self) -> &LlmConfig {

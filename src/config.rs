@@ -15,6 +15,8 @@ pub struct AgentConfig {
 pub struct RuntimeConfig {
     pub default_backend: String,
     pub llama_executable: String,
+    pub use_gpu: bool,
+    pub gpu_layers: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,10 +36,14 @@ pub struct DefaultParams {
 
 impl Default for AgentConfig {
     fn default() -> Self {
+        let (gpu_support, gpu_layers) = detect_gpu_support();
+        
         Self {
             runtime: RuntimeConfig {
                 default_backend: "llama.cpp".to_string(),
                 llama_executable: "llama-cli".to_string(),
+                use_gpu: gpu_support,
+                gpu_layers,
             },
             models: HashMap::new(),
             defaults: DefaultParams {
@@ -91,6 +97,49 @@ pub fn load_config() -> Result<AgentConfig, LlmError> {
     }
     
     Ok(config)
+}
+
+/// Detect if GPU acceleration is available on this system
+/// For now, we default to CPU-only for stability and let users opt-in to GPU
+pub fn detect_gpu_support() -> (bool, Option<u32>) {
+    // Default to CPU-only for maximum compatibility
+    // Users can enable GPU by configuring their config.toml or using custom args
+    (false, None)
+    
+    // Commented out auto-detection code for future use:
+    /*
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        // Apple Silicon Macs support Metal Performance Shaders
+        // Use a conservative layer count for Metal
+        (true, Some(8))
+    }
+    
+    #[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+    {
+        // Intel Macs typically don't have good GPU acceleration for LLMs
+        (false, None)
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux, we could check for CUDA/ROCm but for now be conservative
+        // TODO: Add actual GPU detection logic for NVIDIA/AMD GPUs
+        (false, None)
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, we could check for CUDA/DirectML but for now be conservative  
+        // TODO: Add actual GPU detection logic for NVIDIA/AMD GPUs
+        (false, None)
+    }
+    
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        (false, None)
+    }
+    */
 }
 
 pub fn discover_models() -> Result<HashMap<String, ModelEntry>, LlmError> {
