@@ -27,6 +27,8 @@ cat > "${AGENTD_CONFIG}/config.toml" << 'EOF'
 [runtime]
 default_backend = "llama.cpp"
 llama_executable = "llama-cli"
+use_gpu = false
+gpu_layers = 0
 
 [models]
 # Models will be auto-discovered in ~/.agentd/models/
